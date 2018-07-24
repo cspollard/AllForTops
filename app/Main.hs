@@ -50,7 +50,6 @@ readLargeJets = do
 data RCJet =
   RCJet
   { rcFourMom :: PtEtaPhiE
-  , rcMass    :: Double
   } deriving Show
 
 readRCJets :: (MonadIO m, MonadThrow m) => TreeRead m [RCJet]
@@ -59,11 +58,10 @@ readRCJets = do
   etas <- fmap float2Double <$> readBranch "rcjet_eta"
   phis <- fmap float2Double <$> readBranch "rcjet_phi"
   es <- fmap float2Double <$> readBranch "rcjet_e"
-  ms <- fmap float2Double <$> readBranch "rcjet_m"
 
   let ljFourMoms = PtEtaPhiE <$> pts <*> etas <*> phis <*> es
 
-  return . getZipList $ RCJet <$> ljFourMoms <*> ms
+  return . getZipList $ RCJet <$> ljFourMoms
 
 
 data Jet =
@@ -90,8 +88,8 @@ readJets = do
     cToB _ = True
 
 
-eventRead :: (MonadIO m, MonadThrow m) => TreeRead m ([Jet], [LargeJet])
-eventRead = (,) <$> readJets <*> readLargeJets
+readEvent :: (MonadIO m, MonadThrow m) => TreeRead m ([Jet], [RCJet])
+readEvent = (,) <$> readJets <*> readRCJets
 
 
 main :: IO ()
@@ -108,7 +106,7 @@ main = do
       t <- ttree f "nominal_Loose"
       runEffect . evalStateP t
         $ each [0..]
-          >-> pipeTTree eventRead
+          >-> pipeTTree readEvent
           >-> P.print
 
       tfileClose f
