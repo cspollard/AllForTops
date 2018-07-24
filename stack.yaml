@@ -89,8 +89,14 @@ packages:
     commit: 46f342de826a26442545f8da22d8b2fe918751bb
   extra-dep: true
 
+- location:
+    git: https://github.com/cspollard/variation.git
+    commit: 5ec69558ad1e8bc4f94510f851f24671967fc922
+  extra-dep: true
+
+
 extra-deps:
 - cereal-text-0.1.0.2
 - histogram-fill-cereal-0.6.2.0
 
-resolver: lts-11.18
+resolver: lts-9.0

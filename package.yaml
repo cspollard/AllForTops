@@ -35,6 +35,11 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - AllForTops
+    - atlas
+    - ttree
+    - foldl
+    - pipes
+    - optparse-generic
 
 tests:
   AllForTops-test:
