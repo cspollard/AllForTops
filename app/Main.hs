@@ -8,6 +8,7 @@ import           Atlas
 import           Atlas.CrossSections
 import           Control.Applicative  (ZipList (..))
 import qualified Control.Foldl        as F
+import           Control.Lens         (view)
 import           Control.Monad        (forM_)
 import           Data.Functor.Compose
 import           Data.TFile
@@ -120,6 +121,7 @@ main = do
         $ each [0..]
           >-> pipeTTree readEvent
           >-> P.filter (\(nb, js, rcs) -> nb >= 3 && length js >= 4 && length rcs >= 2)
+          >-> P.map (\(_, _, RCJet rc1:RCJet rc2:_) -> view lvM (rc1 `mappend` rc2))
           >-> P.print
 
       tfileClose f

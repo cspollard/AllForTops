@@ -39,6 +39,7 @@ executables:
     - ttree
     - foldl
     - pipes
+    - lens
     - optparse-generic
 
 tests:
