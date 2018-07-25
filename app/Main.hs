@@ -100,21 +100,21 @@ readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
 readEvent = do
   -- wgt <- float2Double <$> readBranch "weight_mc"
   js <- readJets
-  rcjs <- readRCJets
+  ljs <- readLargeJets
   let nbjs = foldr (\(Jet _ tagged) s -> if tagged then s+1 else s) 0 js
-      js' = removeOverlap rcjs js
-      rcp4s = take 2 . filter ((> 80000) . view lvM) $ rcFourMom <$> rcjs
+      js' = removeOverlap ljs js
+      ljp4s = take 2 . filter ((> 80000) . view lvM) $ ljFourMom <$> ljs
 
-  if nbjs < 3 || length js' < 4 || length rcp4s < 2
+  if nbjs < 3 || length js' < 4 || length ljp4s < 2
     then return Nothing
     else
-      let (rc1:rc2:_) = rcp4s
-      in return . Just . view lvM $ rc1 <> rc2
+      let (lj1:lj2:_) = ljp4s
+      in return . Just . view lvM $ lj1 <> lj2
 
   where
-    removeOverlap rcjs js =
-      let rcp4s = rcFourMom <$> rcjs
-      in filter (\j -> all (\rc -> lvDRRap rc (jFourMom j) > 1.0) rcp4s) js
+    removeOverlap ljs js =
+      let ljp4s = ljFourMom <$> ljs
+      in filter (\j -> all (\lj -> lvDRRap lj (jFourMom j) > 1.0) ljp4s) js
 
 
 main :: IO ()
