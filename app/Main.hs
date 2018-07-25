@@ -106,7 +106,7 @@ readEvent = do
       js' = removeOverlap rcjs js
       rcp4s = take 2 . filter ((> 80000) . view lvM) $ rcFourMom <$> rcjs
 
-  if nbjs < 3 || length js' < 4 || length rcjs < 2
+  if nbjs < 3 || length js' < 4 || length rcp4s < 2
     then return Nothing
     else
       let (rc1:rc2:_) = rcp4s
