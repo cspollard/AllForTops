@@ -102,18 +102,29 @@ readJets = do
 readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
 readEvent = do
   -- wgt <- float2Double <$> readBranch "weight_mc"
-  jets <- readJets
-  topJets <- take 2 . filter topTagged <$> readLargeJets
+  pass <-
+    or <$> traverse (fmap iToB . readBranch)
+      [ "boosted_ejets_2015_DL1"
+      , "boosted_mujets_2015_DL1"
+      , "boosted_ejets_2016_DL1"
+      , "boosted_mujets_2016_DL1"
+      ]
 
-  let bjets = filter bTagged jets
-      tjp4s = ljFourMom <$> topJets
-      jets' = removeOverlap tjp4s jets
-
-  if length tjp4s < 2 || length bjets /= 2 || length jets' < 3
+  if not pass
     then return Nothing
-    else
-      let (tj1:tj2:_) = tjp4s
-      in return . Just . view lvM $ tj1 <> tj2
+    else do
+      jets <- readJets
+      topJets <- take 2 . filter topTagged <$> readLargeJets
+
+      let bjets = filter bTagged jets
+          tjp4s = ljFourMom <$> topJets
+          jets' = removeOverlap tjp4s jets
+
+      if length tjp4s < 2 || length bjets /= 2 || length jets' < 3
+        then return Nothing
+        else
+          let (tj1:tj2:_) = tjp4s
+          in return . Just . view lvM $ tj1 <> tj2
 
   where
     removeOverlap ljp4s =
@@ -122,6 +133,11 @@ readEvent = do
     bTagged (Jet _ tagged) = tagged
 
     topTagged (LargeJet p4 m) = view lvPt p4 > 200 && m > 80
+
+    iToB :: CInt -> Bool
+    iToB 0 = False
+    iToB _ = True
+
 
 
 main :: IO ()
