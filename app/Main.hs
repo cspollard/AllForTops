@@ -24,6 +24,7 @@ import           Options.Generic
 import           Pipes
 import           Pipes.Lift
 import qualified Pipes.Prelude              as P
+import           System.IO
 
 data Args =
   Args
@@ -124,8 +125,8 @@ main = do
   xsec <- readXSecFile (xsecfile args)
 
 
-  runEffect
-    $ for (linesP $ infiles args) readTree >-> P.mapM_ printLine
+  withFile (outfile args) WriteMode $ \h ->
+    runEffect $ for (linesP $ infiles args) readTree >-> P.toHandle h
 
 
   where
@@ -134,14 +135,13 @@ main = do
       each (lines s) >-> P.filter (not . null)
 
     readTree fn = do
+      liftIO . putStrLn $ "running over file " ++ fn
       f <- tfileOpen fn
       t <- ttree f "nominal_Loose"
       evalStateP t
         $ each [0..]
           >-> pipeTTree readEvent
           >-> P.concat
-          >-> P.map (1.0,)
+          >-> P.map (\m -> "1.0, " ++ show m)
 
       tfileClose f
-
-    printLine (w, m) = putStr $ show w ++ ", " ++ show m
