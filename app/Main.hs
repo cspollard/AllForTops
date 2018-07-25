@@ -17,6 +17,7 @@ import           Data.Maybe                 (isJust)
 import           Data.Monoid                ((<>))
 import           Data.TFile
 import           Data.TTree
+import           Debug.Trace
 import           GHC.Float
 import           Options.Generic
 import           Pipes
@@ -96,30 +97,30 @@ readJets = do
     cToB _ = True
 
 
-topTagged :: LargeJet -> Bool
-topTagged (LargeJet p4 m) = view lvPt p4 > 250 && m > 100
-
-
 readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
 readEvent = do
   -- wgt <- float2Double <$> readBranch "weight_mc"
-  jets <- readJets
-  topJets <- filter topTagged <$> readLargeJets
-  let bTagged (Jet _ tagged) = tagged
-      bjets = filter bTagged jets
+  jets <- traceShowId <$> readJets
+  topJets <- traceShowId . filter topTagged <$> readLargeJets
+
+  let bjets = filter bTagged jets
       jets' = removeOverlap topJets jets
       tjp4s = ljFourMom <$> topJets
 
   if length tjp4s < 2 || length bjets /= 2 || length jets' < 3
     then return Nothing
     else
-      let (lj1:lj2:_) = tjp4s
-      in return . Just . view lvM $ lj1 <> lj2
+      let (tj1:tj2:_) = tjp4s
+      in return . Just . view lvM $ tj1 <> tj2
 
   where
     removeOverlap ljs js =
       let ljp4s = ljFourMom <$> ljs
       in filter (\j -> all (\lj -> lvDRRap lj (jFourMom j) > 1.2) ljp4s) js
+
+    bTagged (Jet _ tagged) = tagged
+
+    topTagged (LargeJet p4 m) = view lvPt p4 > 250 && m > 100
 
 
 main :: IO ()
