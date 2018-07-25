@@ -132,7 +132,7 @@ readEvent = do
 
     bTagged (Jet _ tagged) = tagged
 
-    topTagged (LargeJet p4 m) = view lvPt p4 > 200 && m > 80
+    topTagged (LargeJet p4 m) = view lvPt p4 > 250 && m > 100
 
     iToB :: CInt -> Bool
     iToB 0 = False
