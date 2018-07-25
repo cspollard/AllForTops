@@ -103,7 +103,7 @@ readEvent = do
   ljs <- readLargeJets
   let nbjs = foldr (\(Jet _ tagged) s -> if tagged then s+1 else s) 0 js
       js' = removeOverlap ljs js
-      ljp4s = take 2 . filter ((> 80000) . view lvM) $ ljFourMom <$> ljs
+      ljp4s = take 2 . filter ((> 80000) . ljMass) $ ljFourMom <$> ljs
 
   if nbjs < 3 || length js' < 4 || length ljp4s < 2
     then return Nothing
