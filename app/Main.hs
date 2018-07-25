@@ -124,9 +124,18 @@ main = do
 
   hSetBuffering stdout LineBuffering
 
+  let filesP = linesP $ infiles args
+
+
+  sow <-
+    F.purely P.fold F.sum
+    $ for filesP readSumWeights
+
+  putStrLn $ "sum of weights: " ++ show sow
+
   withFile (outfile args) WriteMode $ \h -> do
     hSetBuffering h LineBuffering
-    runEffect $ for (linesP $ infiles args) readTree >-> P.toHandle h
+    runEffect $ for filesP readTree >-> P.toHandle h
 
 
   where
@@ -145,3 +154,11 @@ main = do
           >-> P.map (\m -> "1.0, " ++ show m)
 
       tfileClose f
+
+    readSumWeights fn = do
+      liftIO . putStrLn $ "checking weights of file " ++ fn
+      f <- tfileOpen fn
+      t <- ttree f "sumWeights"
+      evalStateP t
+        $ each [0..]
+          >-> pipeTTree (float2Double <$> readBranch "totalEventsWeighted")
