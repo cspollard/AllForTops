@@ -103,14 +103,14 @@ readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
 readEvent = do
   -- wgt <- float2Double <$> readBranch "weight_mc"
   jets <- readJets
-  topJets <- filter topTagged <$> readLargeJets
+  topJets <- take 2 . filter topTagged <$> readLargeJets
 
   liftIO $ print jets
   liftIO $ print topJets
 
   let bjets = filter bTagged jets
-      jets' = removeOverlap topJets jets
       tjp4s = ljFourMom <$> topJets
+      jets' = removeOverlap tjp4s jets
 
   liftIO $ print jets'
 
@@ -121,9 +121,8 @@ readEvent = do
       in return . Just . view lvM $ tj1 <> tj2
 
   where
-    removeOverlap ljs js =
-      let ljp4s = ljFourMom <$> ljs
-      in filter (\j -> all (\lj -> lvDRRap lj (jFourMom j) > 1.2) ljp4s) js
+    removeOverlap ljp4s =
+      filter (\j -> all (\lj -> lvDRRap lj (jFourMom j) > 1.0) ljp4s)
 
     bTagged (Jet _ tagged) = tagged
 
