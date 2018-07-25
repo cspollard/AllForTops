@@ -96,25 +96,30 @@ readJets = do
     cToB _ = True
 
 
+topTagged :: LargeJet -> Bool
+topTagged (LargeJet p4 m) = view lvPt p4 > 250 && m > 100
+
+
 readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
 readEvent = do
-  -- wgt <- ((/1e3) . float2Double) <$> readBranch "weight_mc"
-  js <- readJets
-  ljs <- readLargeJets
-  let nbjs = foldr (\(Jet _ tagged) s -> if tagged then s+1 else s) 0 js
-      js' = removeOverlap ljs js
-      ljp4s = fmap ljFourMom . take 2 $ filter ((> 80000) . ljMass) ljs
+  -- wgt <- float2Double <$> readBranch "weight_mc"
+  jets <- readJets
+  topJets <- filter topTagged <$> readLargeJets
+  let bTagged (Jet _ tagged) = tagged
+      bjets = filter bTagged jets
+      jets' = removeOverlap topJets jets
+      tjp4s = ljFourMom <$> topJets
 
-  if nbjs < 3 || length js' < 4 || length ljp4s < 2
+  if length tjp4s < 2 || length bjets /= 2 || length jets' < 3
     then return Nothing
     else
-      let (lj1:lj2:_) = ljp4s
+      let (lj1:lj2:_) = tjp4s
       in return . Just . view lvM $ lj1 <> lj2
 
   where
     removeOverlap ljs js =
       let ljp4s = ljFourMom <$> ljs
-      in filter (\j -> all (\lj -> lvDRRap lj (jFourMom j) > 1.0) ljp4s) js
+      in filter (\j -> all (\lj -> lvDRRap lj (jFourMom j) > 1.2) ljp4s) js
 
 
 main :: IO ()
@@ -159,4 +164,4 @@ main = do
       t <- ttree f "sumWeights"
       evalStateP t
         $ each [0..]
-          >-> pipeTTree (((/1e3) . float2Double) <$> readBranch "totalEventsWeighted")
+          >-> pipeTTree (float2Double <$> readBranch "totalEventsWeighted")
