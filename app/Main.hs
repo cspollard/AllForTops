@@ -76,8 +76,8 @@ readRCJets = do
 
 data Jet =
   Jet
-  { jFourMom :: PtEtaPhiE
-  , jDL177   :: Bool
+  { jFourMom  :: PtEtaPhiE
+  , jMV2c1077 :: Bool
   } deriving Show
 
 
@@ -87,7 +87,7 @@ readJets = do
   etas <- fmap float2Double <$> readBranch "jet_eta"
   phis <- fmap float2Double <$> readBranch "jet_phi"
   es <- fmap ((/1e3) . float2Double) <$> readBranch "jet_e"
-  btags <- fmap cToB <$> readBranch "jet_isbtagged_DL1_77"
+  btags <- fmap cToB <$> readBranch "jet_isbtagged_MV2c10_77"
 
   let ljFourMoms = PtEtaPhiE <$> pts <*> etas <*> phis <*> es
 
@@ -104,10 +104,10 @@ readEvent = do
   -- wgt <- float2Double <$> readBranch "weight_mc"
   pass <-
     or <$> traverse (fmap iToB . readBranch)
-      [ "boosted_ejets_2015_DL1"
-      , "boosted_mujets_2015_DL1"
-      , "boosted_ejets_2016_DL1"
-      , "boosted_mujets_2016_DL1"
+      [ "boosted_ejets_2015_MV2c10"
+      , "boosted_mujets_2015_MV2c10"
+      , "boosted_ejets_2016_MV2c10"
+      , "boosted_mujets_2016_MV2c10"
       ]
 
   if not pass
