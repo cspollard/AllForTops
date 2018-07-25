@@ -40,6 +40,9 @@ executables:
     - foldl
     - pipes
     - lens
+    - mtl
+    - histogram-fill
+    - comonad
     - optparse-generic
 
 tests:
