@@ -43,11 +43,11 @@ data LargeJet =
 
 readLargeJets :: (MonadIO m, MonadThrow m) => TreeRead m [LargeJet]
 readLargeJets = do
-  pts <- fmap float2Double <$> readBranch "ljet_pt"
-  etas <- fmap float2Double <$> readBranch "ljet_eta"
-  phis <- fmap float2Double <$> readBranch "ljet_phi"
-  es <- fmap float2Double <$> readBranch "ljet_e"
-  ms <- fmap float2Double <$> readBranch "ljet_m"
+  pts <- fmap ((/1e3) . float2Double) <$> readBranch "ljet_pt"
+  etas <- fmap ((/1e3) . float2Double) <$> readBranch "ljet_eta"
+  phis <- fmap ((/1e3) . float2Double) <$> readBranch "ljet_phi"
+  es <- fmap ((/1e3) . float2Double) <$> readBranch "ljet_e"
+  ms <- fmap ((/1e3) . float2Double) <$> readBranch "ljet_m"
 
   let ljFourMoms = PtEtaPhiE <$> pts <*> etas <*> phis <*> es
 
@@ -61,10 +61,10 @@ newtype RCJet =
 
 readRCJets :: (MonadIO m, MonadThrow m) => TreeRead m [RCJet]
 readRCJets = do
-  pts <- fmap float2Double <$> readBranch "rcjet_pt"
-  etas <- fmap float2Double <$> readBranch "rcjet_eta"
-  phis <- fmap float2Double <$> readBranch "rcjet_phi"
-  es <- fmap float2Double <$> readBranch "rcjet_e"
+  pts <- fmap ((/1e3) . float2Double) <$> readBranch "rcjet_pt"
+  etas <- fmap ((/1e3) . float2Double) <$> readBranch "rcjet_eta"
+  phis <- fmap ((/1e3) . float2Double) <$> readBranch "rcjet_phi"
+  es <- fmap ((/1e3) . float2Double) <$> readBranch "rcjet_e"
 
   let rcFourMoms = PtEtaPhiE <$> pts <*> etas <*> phis <*> es
 
@@ -80,10 +80,10 @@ data Jet =
 
 readJets :: (MonadIO m, MonadThrow m) => TreeRead m [Jet]
 readJets = do
-  pts <- fmap float2Double <$> readBranch "jet_pt"
-  etas <- fmap float2Double <$> readBranch "jet_eta"
-  phis <- fmap float2Double <$> readBranch "jet_phi"
-  es <- fmap float2Double <$> readBranch "jet_e"
+  pts <- fmap ((/1e3) . float2Double) <$> readBranch "jet_pt"
+  etas <- fmap ((/1e3) . float2Double) <$> readBranch "jet_eta"
+  phis <- fmap ((/1e3) . float2Double) <$> readBranch "jet_phi"
+  es <- fmap ((/1e3) . float2Double) <$> readBranch "jet_e"
   btags <- fmap cToB <$> readBranch "jet_isbtagged_DL1_77"
 
   let ljFourMoms = PtEtaPhiE <$> pts <*> etas <*> phis <*> es
@@ -98,7 +98,7 @@ readJets = do
 
 readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
 readEvent = do
-  -- wgt <- float2Double <$> readBranch "weight_mc"
+  -- wgt <- ((/1e3) . float2Double) <$> readBranch "weight_mc"
   js <- readJets
   ljs <- readLargeJets
   let nbjs = foldr (\(Jet _ tagged) s -> if tagged then s+1 else s) 0 js
@@ -126,7 +126,6 @@ main = do
 
   let filesP = linesP $ infiles args
 
-
   sow <-
     F.purely P.fold F.sum
     $ for filesP readSumWeights
@@ -136,7 +135,6 @@ main = do
   withFile (outfile args) WriteMode $ \h -> do
     hSetBuffering h LineBuffering
     runEffect $ for filesP readTree >-> P.toHandle h
-
 
   where
     linesP fn = do
@@ -161,4 +159,4 @@ main = do
       t <- ttree f "sumWeights"
       evalStateP t
         $ each [0..]
-          >-> pipeTTree (float2Double <$> readBranch "totalEventsWeighted")
+          >-> pipeTTree (((/1e3) . float2Double) <$> readBranch "totalEventsWeighted")
