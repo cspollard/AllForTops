@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
 
 module Main where
 
@@ -15,7 +14,6 @@ import           Control.Monad              (forM_)
 import           Control.Monad.Writer.Class
 import           Data.Functor.Compose
 import           Data.Maybe                 (isJust)
--- import           Data.Histogram.Bin.BinF
 import           Data.Monoid                ((<>))
 import           Data.TFile
 import           Data.TTree
@@ -124,8 +122,10 @@ main = do
   args <- getRecord "run-4t" :: IO Args
   xsec <- readXSecFile (xsecfile args)
 
+  hSetBuffering stdout LineBuffering
 
-  withFile (outfile args) WriteMode $ \h ->
+  withFile (outfile args) WriteMode $ \h -> do
+    hSetBuffering h LineBuffering
     runEffect $ for (linesP $ infiles args) readTree >-> P.toHandle h
 
 
