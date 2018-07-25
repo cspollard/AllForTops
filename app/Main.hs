@@ -105,14 +105,9 @@ readEvent = do
   jets <- readJets
   topJets <- take 2 . filter topTagged <$> readLargeJets
 
-  liftIO $ print jets
-  liftIO $ print topJets
-
   let bjets = filter bTagged jets
       tjp4s = ljFourMom <$> topJets
       jets' = removeOverlap tjp4s jets
-
-  liftIO $ print jets'
 
   if length tjp4s < 2 || length bjets /= 2 || length jets' < 3
     then return Nothing
@@ -138,11 +133,11 @@ main = do
 
   let filesP = linesP $ infiles args
 
-  sow <-
-    F.purely P.fold F.sum
-    $ for filesP readSumWeights
+  -- sow <-
+  --   F.purely P.fold F.sum
+  --   $ for filesP readSumWeights
 
-  putStrLn $ "sum of weights: " ++ show sow
+  -- putStrLn $ "sum of weights: " ++ show sow
 
   withFile (outfile args) WriteMode $ \h -> do
     hSetBuffering h LineBuffering
