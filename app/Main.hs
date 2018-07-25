@@ -42,6 +42,7 @@ data LargeJet =
   , ljMass    :: Double
   } deriving Show
 
+
 readLargeJets :: (MonadIO m, MonadThrow m) => TreeRead m [LargeJet]
 readLargeJets = do
   pts <- fmap ((/1e3) . float2Double) <$> readBranch "ljet_pt"
@@ -59,6 +60,7 @@ newtype RCJet =
   RCJet
   { rcFourMom :: PtEtaPhiE
   } deriving Show
+
 
 readRCJets :: (MonadIO m, MonadThrow m) => TreeRead m [RCJet]
 readRCJets = do
@@ -100,12 +102,17 @@ readJets = do
 readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
 readEvent = do
   -- wgt <- float2Double <$> readBranch "weight_mc"
-  jets <- traceShowId <$> readJets
-  topJets <- traceShowId . filter topTagged <$> readLargeJets
+  jets <- readJets
+  topJets <- filter topTagged <$> readLargeJets
+
+  liftIO $ print jets
+  liftIO $ print topJets
 
   let bjets = filter bTagged jets
       jets' = removeOverlap topJets jets
       tjp4s = ljFourMom <$> topJets
+
+  liftIO $ print jets'
 
   if length tjp4s < 2 || length bjets /= 2 || length jets' < 3
     then return Nothing
