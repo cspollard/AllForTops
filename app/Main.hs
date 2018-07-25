@@ -125,7 +125,7 @@ main = do
 
 
   runEffect
-    $ for (linesP $ infiles args) readTree >-> P.print
+    $ for (linesP $ infiles args) readTree >-> P.mapM_ printLine
 
 
   where
@@ -143,3 +143,5 @@ main = do
           >-> P.map (1.0,)
 
       tfileClose f
+
+    printLine (w, m) = putStr $ show w ++ ", " ++ show m
