@@ -162,7 +162,7 @@ readEvent isData = do
 
 
 mJJ :: Hist1DFill LogBinD Double
-mJJ = F.premap (1.0,) $ hist1DFill hmJJ
+mJJ = F.premap (,1.0) $ hist1DFill hmJJ
   where
     hmJJ = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
