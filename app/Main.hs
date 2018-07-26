@@ -191,14 +191,14 @@ channelF s f = F.premapM f $ (s,) <$> F.handlesM F.folded mJJ'
     mJJ' = const <$> F.generalize mJJ <*> F.premapM show (toHandleF s)
 
 
-channels :: MonadIO m => F.FoldM m Event [(String, Hist1D LogBinD)]
-channels =
+channels :: MonadIO m => String -> F.FoldM m Event [(String, Hist1D LogBinD)]
+channels prefix =
   traverse (uncurry channelF)
-  [ ("3j2b", eventCut (== 3) (== 2))
-  , ("3j3b", eventCut (== 3) (== 3))
-  , ("4j2b", eventCut (>= 4) (== 2))
-  , ("4j3b", eventCut (>= 4) (== 3))
-  , ("4j4b", eventCut (>= 4) (>= 4))
+  [ (prefix ++ "3j2b", eventCut (== 3) (== 2))
+  , (prefix ++ "3j3b", eventCut (== 3) (== 3))
+  , (prefix ++ "4j2b", eventCut (>= 4) (== 2))
+  , (prefix ++ "4j3b", eventCut (>= 4) (== 3))
+  , (prefix ++ "4j4b", eventCut (>= 4) (>= 4))
   ]
 
   where
@@ -234,7 +234,7 @@ main = do
   -- putStrLn $ "sum of weights: " ++ show sow
 
   hists <-
-    F.impurely P.foldM channels
+    F.impurely P.foldM (channels $ outfolder args ++ "/")
       $ for filesP (readTree (isdata args))
 
   forM_ hists $ \(p, h) -> do
