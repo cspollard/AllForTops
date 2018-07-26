@@ -43,6 +43,11 @@ executables:
     - mtl
     - histogram-fill
     - comonad
+    - vector
+    - histogram-extras
+    - transformers
+    - text
+    - containers
     - optparse-generic
 
 tests:

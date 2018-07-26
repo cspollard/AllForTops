@@ -1,36 +1,48 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Main where
 
 import           Atlas
 import           Atlas.CrossSections
-import           Control.Applicative        (ZipList (..))
-import           Control.Comonad            (duplicate, extract)
-import qualified Control.Foldl              as F
-import           Control.Lens               (view)
-import           Control.Monad              (forM_)
+import           Atlas.Histogramming
+import           Control.Applicative          (ZipList (..))
+import           Control.Comonad              (duplicate, extract)
+import qualified Control.Foldl                as F
+import           Control.Lens                 (over, view)
+import           Control.Monad                (forM_)
+import           Control.Monad.Reader
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Writer
 import           Control.Monad.Writer.Class
 import           Data.Functor.Compose
-import           Data.Maybe                 (isJust)
-import           Data.Monoid                ((<>))
+import           Data.Histogram.Bin.Transform
+import qualified Data.Histogram.Generic       as H
+import qualified Data.IntMap                  as IM
+import           Data.Maybe                   (isJust)
+import           Data.Monoid                  ((<>))
+import qualified Data.Text                    as T
 import           Data.TFile
 import           Data.TTree
+import qualified Data.Vector                  as V
 import           Debug.Trace
 import           GHC.Float
 import           Options.Generic
 import           Pipes
 import           Pipes.Lift
-import qualified Pipes.Prelude              as P
+import qualified Pipes.Prelude                as P
 import           System.IO
 
 data Args =
   Args
-  { outfile  :: String
-  , infiles  :: String
-  , xsecfile :: String
-  , nevents  :: Maybe Int
+  { outfolder :: String
+  , infiles   :: String
+  , xsecfile  :: String
+  , nevents   :: Maybe Int
+  , isdata    :: Bool
   } deriving (Show, Generic)
 
 instance ParseRecord Args where
@@ -99,9 +111,18 @@ readJets = do
     cToB _ = True
 
 
-readEvent :: (MonadIO m, MonadThrow m) => TreeRead m (Maybe Double)
-readEvent = do
-  -- wgt <- float2Double <$> readBranch "weight_mc"
+data Event =
+  Event
+  { eWeight         :: Double
+  , eInclusiveJets  :: [Jet]
+  , eAdditionalJets :: [Jet]
+  , eTopJets        :: [LargeJet]
+  } deriving Show
+
+readEvent
+  :: (MonadIO m, MonadThrow m)
+  => Bool -> TreeRead m (Maybe Event)
+readEvent isData = do
   pass <-
     or <$> traverse (fmap iToB . readBranch)
       [ "boosted_ejets_2015_MV2c10"
@@ -112,7 +133,12 @@ readEvent = do
 
   if not pass
     then return Nothing
-    else do
+    else fmap Just $ do
+      wgt <-
+        if isData
+          then return 1.0
+          else float2Double <$> readBranch "weight_mc"
+
       jets <- readJets
       topJets <- take 2 . filter topTagged <$> readLargeJets
 
@@ -120,11 +146,7 @@ readEvent = do
           tjp4s = ljFourMom <$> topJets
           jets' = removeOverlap tjp4s jets
 
-      if length tjp4s < 2 || length bjets /= 2 || length jets' < 3
-        then return Nothing
-        else
-          let (tj1:tj2:_) = tjp4s
-          in return . Just . view lvM $ tj1 <> tj2
+      return $ Event wgt jets jets' topJets
 
   where
     removeOverlap ljp4s =
@@ -138,6 +160,62 @@ readEvent = do
     iToB 0 = False
     iToB _ = True
 
+
+mJJ :: Hist1DFill LogBinD Double
+mJJ = F.premap (1.0,) $ hist1DFill hmJJ
+  where
+    hmJJ = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
+
+
+toHandleF :: MonadIO m => String -> F.FoldM m String ()
+toHandleF fn = F.FoldM step start done
+  where
+    step h s = liftIO (hPutStrLn h s) >> return h
+    start =
+      liftIO $ do
+        h <- openFile fn WriteMode
+        hSetBuffering h LineBuffering
+        return h
+
+    done h = liftIO $ hClose h
+
+
+channelF
+  :: MonadIO m
+  => String
+  -> (Event -> Maybe Double)
+  -> F.FoldM m Event (String, Hist1D LogBinD)
+channelF s f = F.premapM f $ (s,) <$> F.handlesM F.folded mJJ'
+  where
+    mJJ' :: MonadIO m => F.FoldM m Double (Hist1D LogBinD)
+    mJJ' = const <$> F.generalize mJJ <*> F.premapM show (toHandleF s)
+
+
+channels :: MonadIO m => F.FoldM m Event [(String, Hist1D LogBinD)]
+channels =
+  traverse (uncurry channelF)
+  [ ("3j2b", eventCut (== 3) (== 2))
+  , ("3j3b", eventCut (== 3) (== 3))
+  , ("4j2b", eventCut (>= 4) (== 2))
+  , ("4j3b", eventCut (>= 4) (== 3))
+  , ("4j4b", eventCut (>= 4) (>= 4))
+  ]
+
+  where
+    tagged (Jet _ t) = t
+
+    eventCut cutj cutb Event{..} = do
+      let nb = foldl (\s j -> if tagged j then s+1 else s) 0 eInclusiveJets
+          nj = length eAdditionalJets
+          nJ = length eTopJets
+
+      guard $ nJ >= 2
+      guard $ cutj nj
+      guard $ cutj nj
+
+      let (tj1:tj2:_) = ljFourMom <$> eTopJets
+
+      return . view lvM $ tj1 <> tj2
 
 
 main :: IO ()
@@ -155,25 +233,24 @@ main = do
 
   -- putStrLn $ "sum of weights: " ++ show sow
 
-  withFile (outfile args) WriteMode $ \h -> do
-    hSetBuffering h LineBuffering
-    runEffect $ for filesP readTree >-> P.toHandle h
+  hists <-
+    F.impurely P.foldM channels
+      $ for filesP (readTree (isdata args))
+
+  forM_ hists $ \(p, h) -> do
+    let s = printYodaObj (T.pack p) . pure . H1DD $ over bins toArbBin h
+    print s
 
   where
     linesP fn = do
       s <- liftIO $ readFile fn
       each (lines s) >-> P.filter (not . null)
 
-    readTree fn = do
+    readTree isData fn = do
       liftIO . putStrLn $ "running over file " ++ fn
       f <- tfileOpen fn
       t <- ttree f "nominal_Loose"
-      evalStateP t
-        $ each [0..]
-          >-> pipeTTree readEvent
-          >-> P.concat
-          >-> P.map (\m -> "1.0, " ++ show m)
-
+      evalStateP t $ each [0..] >-> pipeTTree (readEvent isData) >-> P.concat
       tfileClose f
 
     readSumWeights fn = do
