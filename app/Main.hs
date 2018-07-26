@@ -40,8 +40,6 @@ data Args =
   Args
   { outfolder :: String
   , infiles   :: String
-  , xsecfile  :: String
-  , nevents   :: Maybe Int
   , isdata    :: Bool
   } deriving (Show, Generic)
 
@@ -221,7 +219,6 @@ channels prefix =
 main :: IO ()
 main = do
   args <- getRecord "run-4t" :: IO Args
-  xsec <- readXSecFile (xsecfile args)
 
   hSetBuffering stdout LineBuffering
 
