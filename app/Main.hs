@@ -194,11 +194,11 @@ channelF s f = F.premapM f $ (s,) <$> F.handlesM F.folded mJJ'
 channels :: MonadIO m => String -> F.FoldM m Event [(String, Hist1D LogBinD)]
 channels prefix =
   traverse (uncurry channelF)
-  [ (prefix ++ "3j2b", eventCut (== 3) (== 2))
-  , (prefix ++ "3j3b", eventCut (== 3) (== 3))
-  , (prefix ++ "4j2b", eventCut (>= 4) (== 2))
-  , (prefix ++ "4j3b", eventCut (>= 4) (== 3))
-  , (prefix ++ "4j4b", eventCut (>= 4) (>= 4))
+  [ (prefix ++ "eq3j_eq2b", eventCut (== 3) (== 2))
+  , (prefix ++ "eq3j_eq3b", eventCut (== 3) (== 3))
+  , (prefix ++ "ge4j_eq2b", eventCut (>= 4) (== 2))
+  , (prefix ++ "ge4j_eq3b", eventCut (>= 4) (== 3))
+  , (prefix ++ "ge4j_ge4b", eventCut (>= 4) (>= 4))
   ]
 
   where
@@ -211,7 +211,7 @@ channels prefix =
 
       guard $ nJ >= 2
       guard $ cutj nj
-      guard $ cutj nj
+      guard $ cutb nb
 
       let (tj1:tj2:_) = ljFourMom <$> eTopJets
 
@@ -237,9 +237,11 @@ main = do
     F.impurely P.foldM (channels $ outfolder args ++ "/")
       $ for filesP (readTree (isdata args))
 
-  forM_ hists $ \(p, h) -> do
-    let s = printYodaObj (T.pack p) . pure . H1DD $ over bins toArbBin h
-    print s
+  withFile (outfolder args ++ "/histograms.yoda") WriteMode $ \hand ->
+    forM_ hists $ \(p, h) -> do
+      let s = printYodaObj (T.pack p) . pure . H1DD $ over bins toArbBin h
+      hPutStrLn hand $ T.unpack s
+      hPutStrLn hand ""
 
   where
     linesP fn = do
