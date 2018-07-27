@@ -186,7 +186,10 @@ channelF
 channelF s f = F.premapM f $ (s,) <$> F.handlesM F.folded mJJ'
   where
     mJJ' :: MonadIO m => F.FoldM m Double (Hist1D LogBinD)
-    mJJ' = const <$> F.generalize mJJ <*> F.premapM show (toHandleF s)
+    mJJ' =
+      const
+      <$> F.generalize mJJ
+      <*> F.premapM (\m -> "1.0, " ++ show m) (toHandleF s)
 
 
 channels :: MonadIO m => String -> F.FoldM m Event [(String, Hist1D LogBinD)]
