@@ -173,6 +173,7 @@ toHandleF fn = F.FoldM step start done
       liftIO $ do
         h <- openFile fn WriteMode
         hSetBuffering h LineBuffering
+        hPutStrLn h "weight, mtt"
         return h
 
     done h = liftIO $ hClose h
