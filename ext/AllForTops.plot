@@ -1,6 +1,6 @@
 # BEGIN PLOT /*
-LogX=1
-LogY=0
+LogX=0
+LogY=1
 Legend=1
 XLabel=$m_{tt}$ [GeV]
 YLabel=events / GeV
