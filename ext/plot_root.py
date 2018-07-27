@@ -5,7 +5,7 @@ import ROOT
 
 ROOT.TH1.SetDefaultSumw2(True)
 
-names = ["weight", "mtt"]
+names = names = map(str.strip, stdin.readline().split(","))
 
 f = ROOT.TFile.Open(args[1], "CREATE")
 
