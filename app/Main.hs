@@ -194,6 +194,7 @@ channels prefix =
   traverse (uncurry channelF)
   [ (prefix ++ "eq3j_eq2b", eventCut (== 3) (== 2))
   , (prefix ++ "eq3j_eq3b", eventCut (== 3) (== 3))
+  , (prefix ++ "eq3j_ge4b", eventCut (== 3) (>= 4))
   , (prefix ++ "ge4j_eq2b", eventCut (>= 4) (== 2))
   , (prefix ++ "ge4j_eq3b", eventCut (>= 4) (== 3))
   , (prefix ++ "ge4j_ge4b", eventCut (>= 4) (>= 4))
