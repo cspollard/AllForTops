@@ -47,5 +47,6 @@ executables:
     - histogram-extras
     - transformers
     - text
+    - mwc-probability
     - containers
     - optparse-generic
