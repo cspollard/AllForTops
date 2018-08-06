@@ -1,5 +1,5 @@
 # BEGIN PLOT /*
-LogX=0
+LogX=1
 LogY=1
 Legend=1
 XLabel=$m_{tt}$ [GeV]
