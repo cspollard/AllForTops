@@ -150,9 +150,15 @@ readEvent isData = fmap Just $ do
 
 
 mJJ :: Hist1DFill LogBinD Double
-mJJ = F.premap (,1.0) $ hist1DFill hmJJ
+mJJ = F.premap (,1.0) $ hist1DFill h
   where
-    hmJJ = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
+    h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
+
+
+ht :: Hist1DFill LogBinD Double
+ht = F.premap (,1.0) $ hist1DFill h
+  where
+    h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
 
 toHandleF :: MonadIO m => String -> F.FoldM m String ()
@@ -188,9 +194,11 @@ sampleEvent Event{..} =
       return $ eWeight > x
 
 
-channels :: MonadIO m => String -> F.FoldM m Event [(String, Hist1D LogBinD)]
+channels
+  :: MonadIO m
+  => String -> F.FoldM m Event [(String, [(String, Hist1D LogBinD)])]
 channels prefix =
-  traverse (\(a, b) -> channelF a b (mJJ' a))
+  traverse (\(a, b) -> channelF a b (hists a))
   [ (prefix ++ "eq3j_eq2b", eventCut (== 3) (== 2))
   , (prefix ++ "eq3j_eq3b", eventCut (== 3) (== 3))
   , (prefix ++ "eq3j_ge4b", eventCut (== 3) (>= 4))
@@ -200,10 +208,12 @@ channels prefix =
   ]
 
   where
-    mJJ' :: MonadIO m => String -> F.FoldM m Double (Hist1D LogBinD)
-    mJJ' s =
+    hists
+      :: MonadIO m
+      => String -> F.FoldM m Double [(String, Hist1D LogBinD)]
+    hists s =
       const
-      <$> F.generalize mJJ
+      <$> F.generalize (sequenceA [("mJJ",) <$> mJJ, ("ht",) <$> ht])
       <*> F.premapM (\m -> "1.0, " ++ show m) (toHandleF s)
 
     tagged (Jet _ t) = t
@@ -237,7 +247,7 @@ main = do
 
   (Just (dsid :: CInt)) <- P.head $ for (each files) readDSID
 
-  (hists :: [(String, Hist1D LogBinD)]) <-
+  (hists :: [(String, [(String, Hist1D LogBinD)])]) <-
     if dsid == 0
       then
         F.impurely P.foldM (channels $ outfolder args ++ "/")
@@ -264,13 +274,16 @@ main = do
             >-> P.filterM sampleEvent
 
         return
-          $ over (traverse.traverse) (scaling scale) hists'
+          $ over (traverse.traverse.traverse.traverse) (scaling scale) hists'
 
   withFile (outfolder args ++ "/histograms.yoda") WriteMode $ \hand ->
-    forM_ hists $ \(p, h) -> do
-      let s = printYodaObj (T.pack p) . pure . H1DD $ over bins toArbBin h
-      hPutStrLn hand $ T.unpack s
-      hPutStrLn hand ""
+    forM_ hists $ \(chan, hs) ->
+      forM_ hs $ \(hname, h) -> do
+        let s =
+              printYodaObj (T.pack chan <> "/" <> T.pack hname) . pure . H1DD
+              $ over bins toArbBin h
+        hPutStrLn hand $ T.unpack s
+        hPutStrLn hand ""
 
   mapM_ tfileClose files
 
