@@ -152,23 +152,23 @@ readEvent isData = fmap Just $ do
     iToB _ = True
 
 
-hmJJ = F.premap ((,1.0) . ht) $ hist1DFill h
+hmJJ = F.premap ht $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
 mJJ Event{..} =
   let (tj1:tj2:_) = ljFourMom <$> eTopJets
-  in view lvM $ tj1 <> tj2
+  in (eWeight, view lvM $ tj1 <> tj2)
 
 
-hht = F.premap ((,1.0) . ht) $ hist1DFill h
+hht = F.premap ht $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
 ht Event{..} =
   let hthad = sum $ view lvPt . jFourMom <$> eInclusiveJets
       htlep = sum $ view lvPt <$> (eElectrons ++ eMuons)
-  in hthad + htlep
+  in (eWeight, hthad + htlep)
 
 
 toHandleF :: MonadIO m => String -> F.FoldM m String ()
@@ -204,9 +204,17 @@ sampleEvent Event{..} =
       return $ eWeight > x
 
 
+prefilterM :: (Monad m) => (a -> m Bool) -> F.FoldM m a r -> F.FoldM m a r
+prefilterM f (F.FoldM step begin done) = F.FoldM step' begin done
+  where
+    step' x a = do
+      use <- f a
+      if use then step x a else return x
+
+
 channels
-  :: MonadIO m
-  => String -> F.FoldM m Event [(String, [(String, Hist1D LogBinD)])]
+  :: (F.PrimMonad m, MonadIO m)
+  => String -> F.FoldM (Prob m) Event [(String, [(String, Hist1D LogBinD)])]
 channels prefix =
   traverse (\(a, b) -> channelF a b (hists a))
   [ (prefix ++ "ge2J_eq3j_eq2b", eventCut (>= 2) (== 3) (== 2))
@@ -225,12 +233,12 @@ channels prefix =
 
   where
     hists
-      :: MonadIO m
-      => String -> F.FoldM m Event [(String, Hist1D LogBinD)]
+      :: (F.PrimMonad m, MonadIO m)
+      => String -> F.FoldM (Prob m) Event [(String, Hist1D LogBinD)]
     hists s =
       const
       <$> F.generalize (sequenceA [("mJJ",) <$> hmJJ, ("ht",) <$> hht])
-      <*> F.premapM (\m -> "1.0, " ++ show m) (toHandleF s)
+      <*> prefilterM sampleEvent (F.premapM (\m -> "1.0, " ++ show m) (toHandleF s))
 
     tagged (Jet _ t) = t
 
@@ -264,7 +272,8 @@ main = do
   (hists :: [(String, [(String, Hist1D LogBinD)])]) <-
     if dsid == 0
       then
-        F.impurely P.foldM (channels $ outfolder args ++ "/")
+        withSystemRandom . asGenIO . sample
+        . F.impurely P.foldM (channels $ outfolder args ++ "/")
         $ for (each files) (readEvents True)
 
       else do
@@ -285,7 +294,6 @@ main = do
           . F.impurely P.foldM (channels $ outfolder args ++ "/")
           $ for (each files) (readEvents False)
             >-> P.map (scaleWgt scale)
-            >-> P.filterM sampleEvent
 
         return
           $ over (traverse.traverse.traverse.traverse) (scaling scale) hists'
