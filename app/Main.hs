@@ -113,7 +113,8 @@ data Event =
   , eInclusiveJets  :: [Jet]
   , eAdditionalJets :: [Jet]
   , eTopJets        :: [LargeJet]
-  , eLeptons        :: [PtEtaPhiE]
+  , eElectrons      :: [PtEtaPhiE]
+  , eMuons          :: [PtEtaPhiE]
   , eMET            :: PtEtaPhiE
   } deriving Show
 
@@ -139,13 +140,15 @@ readEvent isData = do
           else float2Double <$> readBranch "weight_mc"
 
       jets <- readJets
+      els <- getZipList <$> readFourMoms "el_"
+      mus <- getZipList <$> readFourMoms "mu_"
       topJets <- take 2 . filter topTagged <$> readLargeJets
 
       let bjets = filter bTagged jets
           tjp4s = ljFourMom <$> topJets
           jets' = removeOverlap tjp4s jets
 
-      return $ Event wgt jets jets' topJets mempty mempty
+      return $ Event wgt jets jets' topJets els mus mempty
 
   where
     removeOverlap ljp4s =
@@ -160,16 +163,23 @@ readEvent isData = do
     iToB _ = True
 
 
-mJJ :: Hist1DFill LogBinD Double
-mJJ = F.premap (,1.0) $ hist1DFill h
+hmJJ = F.premap ((,1.0) . ht) $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
+mJJ Event{..} =
+  let (tj1:tj2:_) = ljFourMom <$> eTopJets
+  in view lvM $ tj1 <> tj2
 
-ht :: Hist1DFill LogBinD Double
-ht = F.premap (,1.0) $ hist1DFill h
+
+hht = F.premap ((,1.0) . ht) $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
+
+ht Event{..} =
+  let hthad = sum $ view lvPt . jFourMom <$> eInclusiveJets
+      htlep = sum $ view lvPt <$> (eElectrons ++ eMuons)
+  in hthad + htlep
 
 
 toHandleF :: MonadIO m => String -> F.FoldM m String ()
@@ -210,37 +220,41 @@ channels
   => String -> F.FoldM m Event [(String, [(String, Hist1D LogBinD)])]
 channels prefix =
   traverse (\(a, b) -> channelF a b (hists a))
-  [ (prefix ++ "eq3j_eq2b", eventCut (== 3) (== 2))
-  , (prefix ++ "eq3j_eq3b", eventCut (== 3) (== 3))
-  , (prefix ++ "eq3j_ge4b", eventCut (== 3) (>= 4))
-  , (prefix ++ "ge4j_eq2b", eventCut (>= 4) (== 2))
-  , (prefix ++ "ge4j_eq3b", eventCut (>= 4) (== 3))
-  , (prefix ++ "ge4j_ge4b", eventCut (>= 4) (>= 4))
+  [ (prefix ++ "ge2J_eq3j_eq2b", eventCut (>= 2) (== 3) (== 2))
+  , (prefix ++ "ge2J_eq3j_eq3b", eventCut (>= 2) (== 3) (== 3))
+  , (prefix ++ "ge2J_eq3j_ge4b", eventCut (>= 2) (== 3) (>= 4))
+  , (prefix ++ "ge2J_ge4j_eq2b", eventCut (>= 2) (>= 4) (== 2))
+  , (prefix ++ "ge2J_ge4j_eq3b", eventCut (>= 2) (>= 4) (== 3))
+  , (prefix ++ "ge2J_ge4j_ge4b", eventCut (>= 2) (>= 4) (>= 4))
+  -- , (prefix ++ "eq1J_eq3j_eq2b", eventCut (== 1) (== 3) (== 2))
+  -- , (prefix ++ "eq1J_eq3j_eq3b", eventCut (== 1) (== 3) (== 3))
+  -- , (prefix ++ "eq1J_eq3j_ge4b", eventCut (== 1) (== 3) (>= 4))
+  -- , (prefix ++ "eq1J_ge4j_eq2b", eventCut (== 1) (>= 4) (== 2))
+  -- , (prefix ++ "eq1J_ge4j_eq3b", eventCut (== 1) (>= 4) (== 3))
+  -- , (prefix ++ "eq1J_ge4j_ge4b", eventCut (== 1) (>= 4) (>= 4))
   ]
 
   where
     hists
       :: MonadIO m
-      => String -> F.FoldM m Double [(String, Hist1D LogBinD)]
+      => String -> F.FoldM m Event [(String, Hist1D LogBinD)]
     hists s =
       const
-      <$> F.generalize (sequenceA [("mJJ",) <$> mJJ, ("ht",) <$> ht])
+      <$> F.generalize (sequenceA [("mJJ",) <$> hmJJ, ("ht",) <$> hht])
       <*> F.premapM (\m -> "1.0, " ++ show m) (toHandleF s)
 
     tagged (Jet _ t) = t
 
-    eventCut cutj cutb Event{..} = do
+    eventCut cutJ cutj cutb evt@Event{..} = do
       let nb = foldl (\s j -> if tagged j then s+1 else s) 0 eInclusiveJets
           nj = length eAdditionalJets
           nJ = length eTopJets
 
-      guard $ nJ >= 2
+      guard $ cutJ nJ
       guard $ cutj nj
       guard $ cutb nb
 
-      let (tj1:tj2:_) = ljFourMom <$> eTopJets
-
-      return . view lvM $ tj1 <> tj2
+      return evt
 
 instance MonadThrow m => MonadThrow (Prob m) where
   throwM = lift . throwM
