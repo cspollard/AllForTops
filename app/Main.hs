@@ -289,14 +289,10 @@ main = do
         let (xsec, _) = xsecs IM.! fromEnum dsid
             scale = xsec * lumi args / sow
 
-        hists' <-
-          withSystemRandom . asGenIO . sample
+        withSystemRandom . asGenIO . sample
           . F.impurely P.foldM (channels $ outfolder args ++ "/")
           $ for (each files) (readEvents False)
             >-> P.map (scaleWgt scale)
-
-        return
-          $ over (traverse.traverse.traverse.traverse) (scaling scale) hists'
 
   withFile (outfolder args ++ "/histograms.yoda") WriteMode $ \hand ->
     forM_ hists $ \(chan, hs) ->
