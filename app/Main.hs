@@ -1,26 +1,20 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE DeriveGeneric             #-}
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TupleSections             #-}
 
 module Main where
 
 import           Atlas
 import           Atlas.CrossSections
-import           Atlas.Histogramming
 import           Control.Applicative           (ZipList (..))
-import           Control.Comonad               (duplicate, extract)
 import qualified Control.Foldl                 as F
 import           Control.Lens                  (over, view)
 import           Control.Monad                 (forM_)
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Maybe
-import           Control.Monad.Writer
-import           Control.Monad.Writer.Class
-import           Data.Functor.Compose
-import           Data.Histogram.Bin.Transform
 import qualified Data.Histogram.Generic        as H
 import qualified Data.IntMap                   as IM
 import           Data.Maybe                    (fromMaybe)
@@ -29,7 +23,6 @@ import qualified Data.Text                     as T
 import           Data.TFile
 import           Data.TTree
 import qualified Data.Vector                   as V
-import           Debug.Trace
 import           GHC.Float
 import           Options.Generic
 import           Pipes
@@ -133,8 +126,7 @@ readEvent isData = fmap Just $ do
   els <- getZipList <$> readFourMoms "el_"
   mus <- getZipList <$> readFourMoms "mu_"
 
-  let bjets = filter bTagged jets
-      tjp4s = ljFourMom <$> topJets
+  let tjp4s = ljFourMom <$> topJets
       jets' = removeOverlap tjp4s jets
 
   return $ Event wgt jets jets' topJets els mus mempty
@@ -143,28 +135,26 @@ readEvent isData = fmap Just $ do
     removeOverlap ljp4s =
       filter (\j -> all (\lj -> lvDRRap lj (jFourMom j) > 1.0) ljp4s)
 
-    bTagged (Jet _ tagged) = tagged
-
     topTagged (LargeJet p4 m) = view lvPt p4 > 250 && m > 100
 
-    iToB :: CInt -> Bool
-    iToB 0 = False
-    iToB _ = True
 
-
+hmJJ :: F.Fold Event (Hist1D LogBinD)
 hmJJ = F.premap ht $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
+mJJ :: Event -> (Double, Double)
 mJJ Event{..} =
   let (tj1:tj2:_) = ljFourMom <$> eTopJets
   in (eWeight, view lvM $ tj1 <> tj2)
 
 
+hht :: F.Fold Event (Hist1D LogBinD)
 hht = F.premap ht $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
+ht :: Event -> (Double, Double)
 ht Event{..} =
   let hthad = sum $ view lvPt . jFourMom <$> eInclusiveJets
       htlep = sum $ view lvPt <$> (eElectrons ++ eMuons)
@@ -243,7 +233,8 @@ channels prefix =
     tagged (Jet _ t) = t
 
     eventCut cutJ cutj cutb evt@Event{..} = do
-      let nb = foldl (\s j -> if tagged j then s+1 else s) 0 eInclusiveJets
+
+      let nb = foldl (\s j -> if tagged j then s+1 else s) (0 :: Int) eInclusiveJets
           nj = length eAdditionalJets
           nJ = length eTopJets
 
