@@ -9,6 +9,11 @@ if not outf:
   exit(-1)
 
 c = R.TChain("nominal_Loose")
+c.SetBranchStatus("*_UP", 0)
+c.SetBranchStatus("*_DOWN", 0)
+c.SetBranchStatus("*_up", 0)
+c.SetBranchStatus("*_down", 0)
+c.SetBranchStatus("mc_generator_weights", 0)
 cw = R.TChain("sumWeights")
 
 for fname in myargv[2:]:
