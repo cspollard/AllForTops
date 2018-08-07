@@ -122,33 +122,22 @@ data Event =
 readEvent
   :: (MonadIO m, MonadThrow m)
   => Bool -> TreeRead m (Maybe Event)
-readEvent isData = do
-  pass <-
-    or <$> traverse (fmap iToB . readBranch)
-      [ "boosted_ejets_2015_MV2c10"
-      , "boosted_mujets_2015_MV2c10"
-      , "boosted_ejets_2016_MV2c10"
-      , "boosted_mujets_2016_MV2c10"
-      ]
+readEvent isData = fmap Just $ do
+  wgt <-
+    if isData
+      then return 1.0
+      else float2Double <$> readBranch "weight_mc"
 
-  if not pass
-    then return Nothing
-    else fmap Just $ do
-      wgt <-
-        if isData
-          then return 1.0
-          else float2Double <$> readBranch "weight_mc"
+  jets <- readJets
+  topJets <- take 2 . filter topTagged <$> readLargeJets
+  els <- getZipList <$> readFourMoms "el_"
+  mus <- getZipList <$> readFourMoms "mu_"
 
-      jets <- readJets
-      els <- getZipList <$> readFourMoms "el_"
-      mus <- getZipList <$> readFourMoms "mu_"
-      topJets <- take 2 . filter topTagged <$> readLargeJets
+  let bjets = filter bTagged jets
+      tjp4s = ljFourMom <$> topJets
+      jets' = removeOverlap tjp4s jets
 
-      let bjets = filter bTagged jets
-          tjp4s = ljFourMom <$> topJets
-          jets' = removeOverlap tjp4s jets
-
-      return $ Event wgt jets jets' topJets els mus mempty
+  return $ Event wgt jets jets' topJets els mus mempty
 
   where
     removeOverlap ljp4s =
