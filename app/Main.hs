@@ -188,10 +188,12 @@ channelF
 channelF s f fol = F.premapM f $ (s,) <$> F.handlesM F.folded fol
 
 
-sampleEvent :: F.PrimMonad m => Event -> Prob m Bool
+sampleEvent :: (MonadIO m, F.PrimMonad m) => Event -> Prob m Bool
 sampleEvent Event{..} =
   if eWeight >= 1
-    then return True
+    then do
+      liftIO $ hPutStrLn stderr "warning: event weight > 1!"
+      return True
     else do
       x <- uniform
       return $ eWeight > x
