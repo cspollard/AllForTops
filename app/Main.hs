@@ -162,14 +162,15 @@ ht Event{..} =
   in hthad + htlep
 
 
-toHandleF :: MonadIO m => String -> F.FoldM m String ()
-toHandleF fn = F.FoldM step start done
+toHandleF :: MonadIO m => String -> String -> F.FoldM m String ()
+toHandleF fn initstr = F.FoldM step start done
   where
     step h s = liftIO (hPutStrLn h s) >> return h
     start =
       liftIO $ do
         h <- openFile fn WriteMode
         hSetBuffering h LineBuffering
+        hPutStr h initstr
         return h
 
     done h = liftIO $ hClose h
@@ -229,7 +230,7 @@ channels prefix =
     hists s =
       const
       <$> F.generalize (sequenceA [("mJJ",) <$> hmJJ, ("ht",) <$> hht])
-      <*> prefilterM sampleEvent (F.premapM (\m -> "1.0, " ++ show (mJJ m)) (toHandleF s))
+      <*> prefilterM sampleEvent (F.premapM (\m -> "1.0, " ++ show (mJJ m)) $ toHandleF s "weight, mtt\n")
 
     tagged (Jet _ t) = t
 
