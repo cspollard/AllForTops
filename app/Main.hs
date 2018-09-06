@@ -244,6 +244,7 @@ channels prefix =
 
       return evt
 
+
 instance MonadThrow m => MonadThrow (Prob m) where
   throwM = lift . throwM
 
