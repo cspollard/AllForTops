@@ -245,7 +245,6 @@ channels prefix =
 
       return evt
 
-
 main :: IO ()
 main = do
   args <- getRecord "run-4t" :: IO Args
