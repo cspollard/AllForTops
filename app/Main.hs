@@ -10,26 +10,26 @@ module Main where
 
 import           Atlas
 import           Atlas.CrossSections
-import           Control.Applicative           (ZipList (..))
-import qualified Control.Foldl                 as F
-import           Control.Lens                  (over, view)
-import           Control.Monad                 (forM_)
+import           Control.Applicative        (ZipList (..))
+import qualified Control.Foldl              as F
+import           Control.Lens               (over, view)
+import           Control.Monad              (forM_)
+import           Control.Monad.Random.Class
 import           Control.Monad.Reader
-import qualified Data.Histogram.Generic        as H
-import qualified Data.IntMap                   as IM
-import           Data.Maybe                    (fromMaybe)
-import           Data.Monoid                   ((<>))
-import qualified Data.Text                     as T
+import qualified Data.Histogram.Generic     as H
+import qualified Data.IntMap                as IM
+import           Data.Maybe                 (fromMaybe)
+import           Data.Monoid                ((<>))
+import qualified Data.Text                  as T
 import           Data.TFile
 import           Data.TTree
-import qualified Data.Vector                   as V
+import qualified Data.Vector                as V
 import           GHC.Float
 import           Options.Generic
 import           Pipes
 import           Pipes.Lift
-import qualified Pipes.Prelude                 as P
+import qualified Pipes.Prelude              as P
 import           System.IO
-import           System.Random.MWC.Probability
 
 data Args =
   Args
@@ -47,7 +47,6 @@ data LargeJet =
   { ljFourMom :: PtEtaPhiE
   , ljMass    :: Double
   } deriving Show
-
 
 
 readFourMoms
@@ -143,6 +142,7 @@ hmJJ = F.premap ht $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
+
 mJJ :: Event -> (Double, Double)
 mJJ Event{..} =
   let (tj1:tj2:_) = ljFourMom <$> eTopJets
@@ -153,6 +153,7 @@ hht :: F.Fold Event (Hist1D LogBinD)
 hht = F.premap ht $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
+
 
 ht :: Event -> (Double, Double)
 ht Event{..} =
@@ -183,18 +184,18 @@ channelF
 channelF s f fol = F.premapM f $ (s,) <$> F.handlesM F.folded fol
 
 
-sampleEvent :: (MonadIO m, F.PrimMonad m) => Event -> Prob m Bool
+sampleEvent :: (MonadIO m, MonadRandom m) => Event -> m Bool
 sampleEvent Event{..} =
   if eWeight >= 1
     then do
       liftIO $ hPutStrLn stderr "warning: event weight > 1!"
       return True
     else do
-      x <- uniform
+      x <- getRandomR (0, 1)
       return $ eWeight > x
 
 
-prefilterM :: (Monad m) => (a -> m Bool) -> F.FoldM m a r -> F.FoldM m a r
+prefilterM :: Monad m => (a -> m Bool) -> F.FoldM m a r -> F.FoldM m a r
 prefilterM f (F.FoldM step begin done) = F.FoldM step' begin done
   where
     step' x a = do
@@ -203,8 +204,8 @@ prefilterM f (F.FoldM step begin done) = F.FoldM step' begin done
 
 
 channels
-  :: (F.PrimMonad m, MonadIO m)
-  => String -> F.FoldM (Prob m) Event [(String, [(String, Hist1D LogBinD)])]
+  :: (MonadRandom m, MonadIO m)
+  => String -> F.FoldM m Event [(String, [(String, Hist1D LogBinD)])]
 channels prefix =
   traverse (\(a, b) -> channelF a b (hists a))
   [ (prefix ++ "ge2J_eq3j_eq2b", eventCut (>= 2) (== 3) (== 2))
@@ -223,8 +224,8 @@ channels prefix =
 
   where
     hists
-      :: (F.PrimMonad m, MonadIO m)
-      => String -> F.FoldM (Prob m) Event [(String, Hist1D LogBinD)]
+      :: (MonadRandom m, MonadIO m)
+      => String -> F.FoldM m Event [(String, Hist1D LogBinD)]
     hists s =
       const
       <$> F.generalize (sequenceA [("mJJ",) <$> hmJJ, ("ht",) <$> hht])
@@ -244,11 +245,6 @@ channels prefix =
 
       return evt
 
-
-instance MonadThrow m => MonadThrow (Prob m) where
-  throwM = lift . throwM
-
-
 main :: IO ()
 main = do
   args <- getRecord "run-4t" :: IO Args
@@ -264,8 +260,7 @@ main = do
   (hists :: [(String, [(String, Hist1D LogBinD)])]) <-
     if dsid == 0
       then
-        withSystemRandom . asGenIO . sample
-        . F.impurely P.foldM (channels $ outfolder args ++ "/")
+        F.impurely P.foldM (channels $ outfolder args ++ "/")
         $ for (each files) (readEvents True)
 
       else do
@@ -281,8 +276,9 @@ main = do
         let (xsec, _) = xsecs IM.! fromEnum dsid
             scale = xsec * lumi args / sow
 
-        withSystemRandom . asGenIO . sample
-          . F.impurely P.foldM (channels $ outfolder args ++ "/")
+        liftIO . putStrLn $ "events weights will be scaled by " ++ show scale
+
+        F.impurely P.foldM (channels $ outfolder args ++ "/")
           $ for (each files) (readEvents False)
             >-> P.map (scaleWgt scale)
 
