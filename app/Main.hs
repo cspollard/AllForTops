@@ -138,7 +138,7 @@ readEvent isData = fmap Just $ do
 
 
 hmJJ :: F.Fold Event (Hist1D LogBinD)
-hmJJ = F.premap ht $ hist1DFill h
+hmJJ = F.premap mJJ $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
@@ -229,7 +229,7 @@ channels prefix =
     hists s =
       const
       <$> F.generalize (sequenceA [("mJJ",) <$> hmJJ, ("ht",) <$> hht])
-      <*> prefilterM sampleEvent (F.premapM (\m -> "1.0, " ++ show m) (toHandleF s))
+      <*> prefilterM sampleEvent (F.premapM (\m -> "1.0, " ++ show (mJJ m)) (toHandleF s))
 
     tagged (Jet _ t) = t
 
