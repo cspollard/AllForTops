@@ -138,28 +138,28 @@ readEvent isData = fmap Just $ do
 
 
 hmJJ :: F.Fold Event (Hist1D LogBinD)
-hmJJ = F.premap mJJ $ hist1DFill h
+hmJJ = F.premap (\e -> (eWeight e, mJJ e)) $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
 
-mJJ :: Event -> (Double, Double)
+mJJ :: Event -> Double
 mJJ Event{..} =
   let (tj1:tj2:_) = ljFourMom <$> eTopJets
-  in (eWeight, view lvM $ tj1 <> tj2)
+  in view lvM $ tj1 <> tj2
 
 
 hht :: F.Fold Event (Hist1D LogBinD)
-hht = F.premap ht $ hist1DFill h
+hht = F.premap (\e -> (eWeight e, ht e)) $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
 
-ht :: Event -> (Double, Double)
+ht :: Event -> Double
 ht Event{..} =
   let hthad = sum $ view lvPt . jFourMom <$> eInclusiveJets
       htlep = sum $ view lvPt <$> (eElectrons ++ eMuons)
-  in (eWeight, hthad + htlep)
+  in hthad + htlep
 
 
 toHandleF :: MonadIO m => String -> F.FoldM m String ()
