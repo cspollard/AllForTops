@@ -47,7 +47,7 @@ executables:
     - vector
     - histogram-extras
     - transformers
+    - MonadRandom
     - text
-    - mwc-probability
     - containers
     - optparse-generic
