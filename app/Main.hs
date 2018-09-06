@@ -138,7 +138,7 @@ readEvent isData = fmap Just $ do
 
 
 hmJJ :: F.Fold Event (Hist1D LogBinD)
-hmJJ = F.premap (\e -> (eWeight e, mJJ e)) $ hist1DFill h
+hmJJ = F.premap (\e -> (mJJ e, eWeight e)) $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
@@ -150,7 +150,7 @@ mJJ Event{..} =
 
 
 hht :: F.Fold Event (Hist1D LogBinD)
-hht = F.premap (\e -> (eWeight e, ht e)) $ hist1DFill h
+hht = F.premap (\e -> (ht e, eWeight e)) $ hist1DFill h
   where
     h = H.histogramUO (logBinD 600 100 6e3) Nothing (V.replicate 100 mempty)
 
